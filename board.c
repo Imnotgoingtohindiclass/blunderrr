@@ -6,7 +6,7 @@
 
 #define SCREEN_WIDTH  640
 #define SCREEN_HEIGHT 640
-#define SQUARE_SIZE   (SCREEN_WIDTH / 8)
+#define SQUARE_SIZE (SCREEN_WIDTH / 8)
 
 SDL_Texture* gPieceTextures[128] = {NULL};
 
@@ -52,17 +52,49 @@ int main(int argc, char* args[]) {
 
     int imgFlags = IMG_INIT_PNG;
 
-    SDL_Window* window = SDL_CreateWindow("chess board", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED,  SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
+    SDL_Window* window = SDL_CreateWindow("chess board", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
 
     SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+
+    /* drag state */
+    bool isDragging = false;
+    char draggedPiece = ' ';
+    int dragStartX = -1;
+    int dragStartY = -1;
+    int mouseX = 0, mouseY = 0;
 
     bool quit = false;
     SDL_Event e;
 
     while (!quit) {
         while (SDL_PollEvent(&e) != 0) {
-            if (e.type == SDL_QUIT)
+            if (e.type == SDL_QUIT) {
                 quit = true;
+            } else if (e.type == SDL_MOUSEBUTTONDOWN) {
+                int bx = e.button.x / SQUARE_SIZE;
+                int by = e.button.y / SQUARE_SIZE;
+                if (board[by][bx] != ' ') {
+                    isDragging = true;
+                    draggedPiece = board[by][bx];
+                    dragStartX = bx;
+                    dragStartY = by;
+                    mouseX = e.button.x;
+                    mouseY = e.button.y;
+                    board[by][bx] = ' '; /* pick up */
+                }
+            } else if (e.type == SDL_MOUSEMOTION && isDragging) {
+                mouseX = e.motion.x;
+                mouseY = e.motion.y;
+            } else if (e.type == SDL_MOUSEBUTTONUP && isDragging) {
+                int bx = e.button.x / SQUARE_SIZE;
+                int by = e.button.y / SQUARE_SIZE;
+                /* clamp to board */
+                if (bx < 0) bx = 0; if (bx > 7) bx = 7;
+                if (by < 0) by = 0; if (by > 7) by = 7;
+                board[by][bx] = draggedPiece;  /* drop (no validation) */
+                isDragging = false;
+                draggedPiece = ' ';
+            }
         }
 
         /* draw the 8x8 board */
@@ -80,7 +112,7 @@ int main(int argc, char* args[]) {
             }
         }
 
-        /* draw pieces */
+        /* draw pieces on the board */
         for (int r = 0; r < 8; ++r) {
             for (int c = 0; c < 8; ++c) {
                 char piece = board[r][c];
@@ -89,10 +121,19 @@ int main(int argc, char* args[]) {
                         c * SQUARE_SIZE, r * SQUARE_SIZE,
                         SQUARE_SIZE, SQUARE_SIZE
                     };
-                    SDL_RenderCopy(renderer, gPieceTextures[(int)piece],
-                                   NULL, &dest);
+                    SDL_RenderCopy(renderer, gPieceTextures[(int)piece], NULL, &dest);
                 }
             }
+        }
+
+        /* draw the piece being dragged on top of everything */
+        if (isDragging && draggedPiece != ' ') {
+            SDL_Rect dest = {
+                mouseX - SQUARE_SIZE / 2,
+                mouseY - SQUARE_SIZE / 2,
+                SQUARE_SIZE, SQUARE_SIZE
+            };
+            SDL_RenderCopy(renderer, gPieceTextures[(int)draggedPiece], NULL, &dest);
         }
 
         SDL_RenderPresent(renderer);
