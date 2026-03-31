@@ -30,7 +30,63 @@ char currentPlayer = 'w';
 int enPassantX = -1;
 int enPassantY = -1;
 
-/* ---- move validation ---- */
+// castling rights
+bool wKingMoved = false, bKingMoved = false;
+bool wRookAMoved = false, wRookHMoved = false;
+bool bRookAMoved = false, bRookHMoved = false;
+
+//fix the dumb cyclic reference issue
+bool isValidMove(char boardState[8][8], char piece, int fromX, int fromY, int toX, int toY, char player);
+
+// check detection
+
+bool isSquareAttacked(char boardState[8][8], int x, int y, char attackerColor) {
+    for (int r = 0; r < 8; ++r) {
+        for (int c = 0; c < 8; ++c) {
+            char piece = boardState[r][c];
+            if (
+                piece != ' ' &&
+                ((attackerColor == 'w' && isupper(piece)) ||
+                 (attackerColor == 'b' && islower(piece)))
+            ) {
+                // pawns have special attack pattern (diagonal only)
+                if (toupper(piece) == 'P') {
+                    int pdy = y - r;
+                    int pdx = abs(x - c);
+                    if (attackerColor == 'w' && pdy == -1 && pdx == 1)
+                        return true;
+                    if (attackerColor == 'b' && pdy ==  1 && pdx == 1)
+                        return true;
+                } else if (isValidMove(boardState, piece, c, r, x, y, attackerColor)) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+bool isKingInCheck(char boardState[8][8], char kingColor) {
+    char kingChar = (kingColor == 'w') ? 'K' : 'k';
+    char attackerColor = (kingColor == 'w') ? 'b' : 'w';
+    int kingX = -1, kingY = -1;
+
+    for (int r = 0; r < 8; ++r) {
+        for (int c = 0; c < 8; ++c) {
+            if (boardState[r][c] == kingChar) {
+                kingX = c;
+                kingY = r;
+                break;
+            }
+        }
+    }
+
+    if (kingX == -1) return false;
+
+    return isSquareAttacked(boardState, kingX, kingY, attackerColor);
+}
+
+// move validation
 
 bool isValidMove(char boardState[8][8], char piece, int fromX, int fromY, int toX, int toY, char player) {
     if (
@@ -50,7 +106,7 @@ bool isValidMove(char boardState[8][8], char piece, int fromX, int fromY, int to
     ) return false;
 
     char dest = boardState[toY][toX];
-    /* can't capture own piece */
+    // cant kill yourself
     if (dest != ' ' &&
         ((isupper(piece) && isupper(dest)) ||
          (islower(piece) && islower(dest))))
@@ -63,23 +119,23 @@ bool isValidMove(char boardState[8][8], char piece, int fromX, int fromY, int to
 
     case 'P': {
         bool isWhite = isupper(piece);
-        int dir = isWhite ? -1 : 1; /* white moves up, black moves down */
-        int startRow = isWhite ? 6 : 1; /* double-push starting row */
+        int dir = isWhite ? -1 : 1; // white/black direction
+        int startRow = isWhite ? 6 : 1; // double push starting row
 
-        /* move forward one */
+        // move forward 1
         if (dx == 0 && dy == dir && dest == ' ')
             return true;
 
-        /* move forward two from start */
+        // move forward 2 at start
         if (dx == 0 && dy == 2 * dir && fromY == startRow &&
             boardState[fromY + dir][fromX] == ' ' && dest == ' ')
             return true;
 
-        /* diagonal capture */
+        // capture diagonally
         if (abs(dx) == 1 && dy == dir && dest != ' ')
             return true;
 
-        /* en passant capture */
+        // EN PASSANT
         if (
             abs(dx) == 1 &&
             dy == dir &&
@@ -132,62 +188,91 @@ bool isValidMove(char boardState[8][8], char piece, int fromX, int fromY, int to
         return true;
     }
 
-    case 'K':
-        return abs(dx) <= 1 && abs(dy) <= 1;
-    }
+    case 'K': {
+        // normal one-square move
+        if (abs(dx) <= 1 && abs(dy) <= 1)
+            return true;
 
-    return false;
-}
+        // castling: king moves two squares horizontally
+        if (abs(dx) == 2 && dy == 0) {
+            // king can't be in check right now
+            char tempBoard[8][8];
+            memcpy(tempBoard, boardState, sizeof(char) * 8 * 8);
+            tempBoard[fromY][fromX] = ' ';
+            if (isKingInCheck(tempBoard, player))
+                return false;
 
-/* ---- check detection ---- */
+            if (player == 'w') {
+                if (wKingMoved) return false;
 
-bool isSquareAttacked(char boardState[8][8], int x, int y, char attackerColor) {
-    for (int r = 0; r < 8; ++r) {
-        for (int c = 0; c < 8; ++c) {
-            char piece = boardState[r][c];
-            if (
-                piece != ' ' &&
-                ((attackerColor == 'w' && isupper(piece)) ||
-                 (attackerColor == 'b' && islower(piece)))
-            ) {
-                /* pawns have special attack pattern (diagonal only) */
-                if (toupper(piece) == 'P') {
-                    int pdy = y - r;
-                    int pdx = abs(x - c);
-                    if (attackerColor == 'w' && pdy == -1 && pdx == 1)
-                        return true;
-                    if (attackerColor == 'b' && pdy ==  1 && pdx == 1)
-                        return true;
-                } else if (isValidMove(boardState, piece, c, r, x, y, attackerColor)) {
+                // kingside
+                if (dx == 2) {
+                    if (
+                        wRookHMoved ||
+                        boardState[7][5] != ' ' ||
+                        boardState[7][6] != ' '
+                    ) return false;
+                    if (
+                        isSquareAttacked(boardState, 5, 7, 'b') ||
+                        isSquareAttacked(boardState, 6, 7, 'b')
+                    ) return false;
+                    return true;
+                }
+                // queenside
+                if (dx == -2) {
+                    if (
+                        wRookAMoved ||
+                        boardState[7][1] != ' ' ||
+                        boardState[7][2] != ' ' ||
+                        boardState[7][3] != ' '
+                    ) return false;
+                    if (
+                        isSquareAttacked(boardState, 2, 7, 'b') ||
+                        isSquareAttacked(boardState, 3, 7, 'b')
+                    ) return false;
+                    return true;
+                }
+            } else {
+                if (bKingMoved) return false;
+
+                // kingside
+                if (dx == 2) {
+                    if (
+                        bRookHMoved ||
+                        boardState[0][5] != ' ' ||
+                        boardState[0][6] != ' '
+                    ) return false;
+                    if (
+                        isSquareAttacked(boardState, 5, 0, 'w') ||
+                        isSquareAttacked(boardState, 6, 0, 'w')
+                    ) return false;
+                    return true;
+                }
+                // queenside
+                if (dx == -2) {
+                    if (
+                        bRookAMoved ||
+                        boardState[0][1] != ' ' ||
+                        boardState[0][2] != ' ' ||
+                        boardState[0][3] != ' '
+                    ) return false;
+                    if (
+                        isSquareAttacked(boardState, 2, 0, 'w') ||
+                        isSquareAttacked(boardState, 3, 0, 'w')
+                    ) return false;
                     return true;
                 }
             }
         }
+
+        return false;
     }
+    }
+
     return false;
 }
 
-bool isKingInCheck(char boardState[8][8], char kingColor) {
-    char kingChar = (kingColor == 'w') ? 'K' : 'k';
-    char attackerColor = (kingColor == 'w') ? 'b' : 'w';
-    int kingX = -1, kingY = -1;
-
-    for (int r = 0; r < 8; ++r) {
-        for (int c = 0; c < 8; ++c) {
-            if (boardState[r][c] == kingChar) {
-                kingX = c;
-                kingY = r;
-                break;
-            }
-        }
-    }
-
-    if (kingX == -1) return false;
-
-    return isSquareAttacked(boardState, kingX, kingY, attackerColor);
-}
-
-/* ---- helpers ---- */
+// helpers
 
 SDL_Texture* loadTexture(SDL_Renderer* renderer, const char* path) {
     SDL_Surface* surface = IMG_Load(path);
@@ -239,7 +324,7 @@ int main(int argc, char* args[]) {
 
     loadMedia(renderer);
 
-    /* drag state */
+    // drag state
     bool isDragging = false;
     char draggedPiece = ' ';
     int dragStartX = -1, dragStartY = -1;
@@ -281,12 +366,12 @@ int main(int argc, char* args[]) {
                 if (by < 0) by = 0; if (by > 7) by = 7;
 
                 if (isValidMove(board, draggedPiece, dragStartX, dragStartY, bx, by, currentPlayer)) {
-                    /* simulate the move on a temp board */
+                    // simulate the move on a temp board
                     char tempBoard[8][8];
                     memcpy(tempBoard, board, sizeof(board));
                     tempBoard[by][bx] = draggedPiece;
 
-                    /* en passant: remove the captured pawn */
+                    // en passant: remove the captured pawn
                     if (
                         toupper(draggedPiece) == 'P' &&
                         bx == enPassantX &&
@@ -298,15 +383,31 @@ int main(int argc, char* args[]) {
                             tempBoard[by - 1][bx] = ' ';
                     }
 
+                    // castling: move the rook
+                    if (
+                        toupper(draggedPiece) == 'K' &&
+                        abs(bx - dragStartX) == 2
+                    ) {
+                        if (bx == 6) {
+                            // kingside
+                            tempBoard[dragStartY][5] = tempBoard[dragStartY][7];
+                            tempBoard[dragStartY][7] = ' ';
+                        } else {
+                            // queenside
+                            tempBoard[dragStartY][3] = tempBoard[dragStartY][0];
+                            tempBoard[dragStartY][0] = ' ';
+                        }
+                    }
+
                     if (!isKingInCheck(tempBoard, currentPlayer)) {
-                        /* legal: commit the move */
+                        // legal: commit the move
                         memcpy(board, tempBoard, sizeof(board));
 
-                        /* reset en passant target */
+                        // reset en passant target
                         enPassantX = -1;
                         enPassantY = -1;
 
-                        /* set new en passant target if pawn double-pushed */
+                        // set new en passant target if pawn double-pushed
                         if (
                             toupper(draggedPiece) == 'P' &&
                             abs(by - dragStartY) == 2
@@ -317,15 +418,23 @@ int main(int argc, char* args[]) {
                                 : dragStartY + 1;
                         }
 
+                        // update castling rights
+                        if (draggedPiece == 'K') wKingMoved = true;
+                        if (draggedPiece == 'k') bKingMoved = true;
+                        if (draggedPiece == 'R' && dragStartX == 0 && dragStartY == 7) wRookAMoved = true;
+                        if (draggedPiece == 'R' && dragStartX == 7 && dragStartY == 7) wRookHMoved = true;
+                        if (draggedPiece == 'r' && dragStartX == 0 && dragStartY == 0) bRookAMoved = true;
+                        if (draggedPiece == 'r' && dragStartX == 7 && dragStartY == 0) bRookHMoved = true;
+
                         currentPlayer = (currentPlayer == 'w') ? 'b' : 'w';
 
-                        /* announce check */
+                        // announce check
                         if (isKingInCheck(board, currentPlayer))
                             printf("%s's turn - check!\n", currentPlayer == 'w' ? "White" : "Black");
                         else
                             printf("%s's turn\n", currentPlayer == 'w' ? "White" : "Black");
                     } else {
-                        /* illegal: king would be in check */
+                        // illegal: king would be in check
                         board[dragStartY][dragStartX] = draggedPiece;
                         printf("illegal move - king in check\n");
                     }
@@ -339,11 +448,11 @@ int main(int argc, char* args[]) {
             }
         }
 
-        /* Clear screen */
+        // Clear screen
         SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
         SDL_RenderClear(renderer);
 
-        /* draw the 8x8 board */
+        // draw the 8x8 board
         for (int r = 0; r < 8; ++r) {
             for (int c = 0; c < 8; ++c) {
                 SDL_Rect square = {
@@ -358,7 +467,7 @@ int main(int argc, char* args[]) {
             }
         }
 
-        /* draw pieces on the board */
+        // draw pieces on the board
         for (int r = 0; r < 8; ++r) {
             for (int c = 0; c < 8; ++c) {
                 char piece = board[r][c];
@@ -372,7 +481,7 @@ int main(int argc, char* args[]) {
             }
         }
 
-        /* draw the dragged piece on top */
+        // draw the dragged piece on top
         if (isDragging && draggedPiece != ' ') {
             SDL_Rect dest = {
                 mouseX - SQUARE_SIZE / 2,
