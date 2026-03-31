@@ -26,6 +26,10 @@ char board[8][8] = {
 
 char currentPlayer = 'w';
 
+/* en passant target square (-1, -1 when not active) */
+int enPassantX = -1;
+int enPassantY = -1;
+
 /* ---- move validation ---- */
 
 bool isValidMove(char boardState[8][8], char piece, int fromX, int fromY, int toX, int toY, char player) {
@@ -73,6 +77,15 @@ bool isValidMove(char boardState[8][8], char piece, int fromX, int fromY, int to
 
         /* diagonal capture */
         if (abs(dx) == 1 && dy == dir && dest != ' ')
+            return true;
+
+        /* en passant capture */
+        if (
+            abs(dx) == 1 &&
+            dy == dir &&
+            toX == enPassantX &&
+            toY == enPassantY
+        )
             return true;
 
         return false;
@@ -273,9 +286,37 @@ int main(int argc, char* args[]) {
                     memcpy(tempBoard, board, sizeof(board));
                     tempBoard[by][bx] = draggedPiece;
 
+                    /* en passant: remove the captured pawn */
+                    if (
+                        toupper(draggedPiece) == 'P' &&
+                        bx == enPassantX &&
+                        by == enPassantY
+                    ) {
+                        if (currentPlayer == 'w')
+                            tempBoard[by + 1][bx] = ' ';
+                        else
+                            tempBoard[by - 1][bx] = ' ';
+                    }
+
                     if (!isKingInCheck(tempBoard, currentPlayer)) {
                         /* legal: commit the move */
                         memcpy(board, tempBoard, sizeof(board));
+
+                        /* reset en passant target */
+                        enPassantX = -1;
+                        enPassantY = -1;
+
+                        /* set new en passant target if pawn double-pushed */
+                        if (
+                            toupper(draggedPiece) == 'P' &&
+                            abs(by - dragStartY) == 2
+                        ) {
+                            enPassantX = bx;
+                            enPassantY = (currentPlayer == 'w')
+                                ? dragStartY - 1
+                                : dragStartY + 1;
+                        }
+
                         currentPlayer = (currentPlayer == 'w') ? 'b' : 'w';
 
                         /* announce check */
