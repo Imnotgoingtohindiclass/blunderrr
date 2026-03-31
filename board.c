@@ -28,7 +28,7 @@ char currentPlayer = 'w';
 
 /* ---- move validation ---- */
 
-bool isValidMove(char piece, int fromX, int fromY, int toX, int toY) {
+bool isValidMove(char boardState[8][8], char piece, int fromX, int fromY, int toX, int toY, char player) {
     if (
         fromX  <  0  ||
         fromX  >  7  ||
@@ -45,8 +45,7 @@ bool isValidMove(char piece, int fromX, int fromY, int toX, int toY) {
         fromY == toY
     ) return false;
 
-
-    char dest = board[toY][toX];
+    char dest = boardState[toY][toX];
     /* can't capture own piece */
     if (dest != ' ' &&
         ((isupper(piece) && isupper(dest)) ||
@@ -69,7 +68,7 @@ bool isValidMove(char piece, int fromX, int fromY, int toX, int toY) {
 
         /* move forward two from start */
         if (dx == 0 && dy == 2 * dir && fromY == startRow &&
-            board[fromY + dir][fromX] == ' ' && dest == ' ')
+            boardState[fromY + dir][fromX] == ' ' && dest == ' ')
             return true;
 
         /* diagonal capture */
@@ -88,7 +87,7 @@ bool isValidMove(char piece, int fromX, int fromY, int toX, int toY) {
         int sx = (dx > 0) ? 1 : -1;
         int sy = (dy > 0) ? 1 : -1;
         for (int i = 1; i < abs(dx); ++i)
-            if (board[fromY + i * sy][fromX + i * sx] != ' ')
+            if (boardState[fromY + i * sy][fromX + i * sx] != ' ')
                 return false;
         return true;
     }
@@ -98,12 +97,12 @@ bool isValidMove(char piece, int fromX, int fromY, int toX, int toY) {
         if (dx == 0) {
             int sy = (dy > 0) ? 1 : -1;
             for (int i = 1; i < abs(dy); ++i)
-                if (board[fromY + i * sy][fromX] != ' ')
+                if (boardState[fromY + i * sy][fromX] != ' ')
                     return false;
         } else {
             int sx = (dx > 0) ? 1 : -1;
             for (int i = 1; i < abs(dx); ++i)
-                if (board[fromY][fromX + i * sx] != ' ')
+                if (boardState[fromY][fromX + i * sx] != ' ')
                     return false;
         }
         return true;
@@ -115,7 +114,7 @@ bool isValidMove(char piece, int fromX, int fromY, int toX, int toY) {
         int sy = (dy > 0) ? 1 : ((dy < 0) ? -1 : 0);
         int steps = (abs(dx) > abs(dy)) ? abs(dx) : abs(dy);
         for (int i = 1; i < steps; ++i)
-            if (board[fromY + i * sy][fromX + i * sx] != ' ')
+            if (boardState[fromY + i * sy][fromX + i * sx] != ' ')
                 return false;
         return true;
     }
@@ -127,11 +126,68 @@ bool isValidMove(char piece, int fromX, int fromY, int toX, int toY) {
     return false;
 }
 
+/* ---- check detection ---- */
+
+bool isSquareAttacked(char boardState[8][8], int x, int y, char attackerColor) {
+    for (int r = 0; r < 8; ++r) {
+        for (int c = 0; c < 8; ++c) {
+            char piece = boardState[r][c];
+            if (
+                piece != ' ' &&
+                ((attackerColor == 'w' && isupper(piece)) ||
+                 (attackerColor == 'b' && islower(piece)))
+            ) {
+                /* pawns have special attack pattern (diagonal only) */
+                if (toupper(piece) == 'P') {
+                    int pdy = y - r;
+                    int pdx = abs(x - c);
+                    if (attackerColor == 'w' && pdy == -1 && pdx == 1)
+                        return true;
+                    if (attackerColor == 'b' && pdy ==  1 && pdx == 1)
+                        return true;
+                } else if (isValidMove(boardState, piece, c, r, x, y, attackerColor)) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
+bool isKingInCheck(char boardState[8][8], char kingColor) {
+    char kingChar = (kingColor == 'w') ? 'K' : 'k';
+    char attackerColor = (kingColor == 'w') ? 'b' : 'w';
+    int kingX = -1, kingY = -1;
+
+    for (int r = 0; r < 8; ++r) {
+        for (int c = 0; c < 8; ++c) {
+            if (boardState[r][c] == kingChar) {
+                kingX = c;
+                kingY = r;
+                break;
+            }
+        }
+    }
+
+    if (kingX == -1) return false;
+
+    return isSquareAttacked(boardState, kingX, kingY, attackerColor);
+}
+
 /* ---- helpers ---- */
 
 SDL_Texture* loadTexture(SDL_Renderer* renderer, const char* path) {
     SDL_Surface* surface = IMG_Load(path);
+    if (!surface) {
+        printf("Failed to load image %s! SDL_image Error: %s\n", path, IMG_GetError());
+        return NULL;
+    }
+
     SDL_Texture* tex = SDL_CreateTextureFromSurface(renderer, surface);
+    if (!tex) {
+        printf("Failed to create texture from %s! SDL Error: %s\n", path, SDL_GetError());
+    }
+
     SDL_FreeSurface(surface);
     return tex;
 }
@@ -145,13 +201,19 @@ bool loadMedia(SDL_Renderer* renderer) {
         'P', 'R', 'N', 'B', 'Q', 'K',
         'p', 'r', 'n', 'b', 'q', 'k'
     };
+
+    bool success = true;
     for (int i = 0; i < 12; ++i) {
         char path[256];
         sprintf(path, "img/%s.png", names[i]);
         gPieceTextures[(int)ids[i]] = loadTexture(renderer, path);
-        if (!gPieceTextures[(int)ids[i]]) return false;
+
+        if (!gPieceTextures[(int)ids[i]]) {
+            printf("Error: Could not load texture for piece '%c'\n", ids[i]);
+            success = false;
+        }
     }
-    return true;
+    return success;
 }
 
 int main(int argc, char* args[]) {
@@ -160,8 +222,9 @@ int main(int argc, char* args[]) {
     int imgFlags = IMG_INIT_PNG;
 
     SDL_Window* window = SDL_CreateWindow("chess board", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
-
     SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+
+    loadMedia(renderer);
 
     /* drag state */
     bool isDragging = false;
@@ -204,12 +267,29 @@ int main(int argc, char* args[]) {
                 if (bx < 0) bx = 0; if (bx > 7) bx = 7;
                 if (by < 0) by = 0; if (by > 7) by = 7;
 
-                if (isValidMove(draggedPiece, dragStartX, dragStartY, bx, by)) {
-                    board[by][bx] = draggedPiece;
-                    currentPlayer = (currentPlayer == 'w') ? 'b' : 'w';
-                    printf("%s's turn\n", currentPlayer == 'w' ? "White" : "Black");
+                if (isValidMove(board, draggedPiece, dragStartX, dragStartY, bx, by, currentPlayer)) {
+                    /* simulate the move on a temp board */
+                    char tempBoard[8][8];
+                    memcpy(tempBoard, board, sizeof(board));
+                    tempBoard[by][bx] = draggedPiece;
+
+                    if (!isKingInCheck(tempBoard, currentPlayer)) {
+                        /* legal: commit the move */
+                        memcpy(board, tempBoard, sizeof(board));
+                        currentPlayer = (currentPlayer == 'w') ? 'b' : 'w';
+
+                        /* announce check */
+                        if (isKingInCheck(board, currentPlayer))
+                            printf("%s's turn - check!\n", currentPlayer == 'w' ? "White" : "Black");
+                        else
+                            printf("%s's turn\n", currentPlayer == 'w' ? "White" : "Black");
+                    } else {
+                        /* illegal: king would be in check */
+                        board[dragStartY][dragStartX] = draggedPiece;
+                        printf("illegal move - king in check\n");
+                    }
                 } else {
-                    board[dragStartY][dragStartX] = draggedPiece; /* snap back */
+                    board[dragStartY][dragStartX] = draggedPiece;
                     printf("illegal move\n");
                 }
 
@@ -217,6 +297,10 @@ int main(int argc, char* args[]) {
                 draggedPiece = ' ';
             }
         }
+
+        /* Clear screen */
+        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
+        SDL_RenderClear(renderer);
 
         /* draw the 8x8 board */
         for (int r = 0; r < 8; ++r) {
