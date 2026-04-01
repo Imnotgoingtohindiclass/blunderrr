@@ -10,8 +10,9 @@
 #define SCREEN_HEIGHT 640
 #define SQUARE_SIZE (SCREEN_WIDTH / 8)
 
-/* piece textures indexed by ASCII value of the piece character */
+// piece textures indexed by ASCII value of the piece character
 SDL_Texture* gPieceTextures[128] = {NULL};
+SDL_Renderer* gRenderer = NULL;
 
 char board[8][8] = {
     {'r', 'n', 'b', 'q', 'k', 'b', 'n', 'r'},
@@ -26,7 +27,7 @@ char board[8][8] = {
 
 char currentPlayer = 'w';
 
-/* en passant target square (-1, -1 when not active) */
+// en passant target square (-1, -1 when not active)
 int enPassantX = -1;
 int enPassantY = -1;
 
@@ -35,7 +36,15 @@ bool wKingMoved = false, bKingMoved = false;
 bool wRookAMoved = false, wRookHMoved = false;
 bool bRookAMoved = false, bRookHMoved = false;
 
-//fix the dumb cyclic reference issue
+// game state
+bool gameOver = false;
+
+// promotion state
+bool awaitingPromotion = false;
+int promotionX = -1;
+int promotionY = -1;
+
+// fix the dumb cyclic reference issue
 bool isValidMove(char boardState[8][8], char piece, int fromX, int fromY, int toX, int toY, char player);
 
 // check detection
@@ -84,6 +93,77 @@ bool isKingInCheck(char boardState[8][8], char kingColor) {
     if (kingX == -1) return false;
 
     return isSquareAttacked(boardState, kingX, kingY, attackerColor);
+}
+
+// endgame detection
+
+bool hasLegalMoves(char playerColor) {
+    char tempBoard[8][8];
+    for (int fromY = 0; fromY < 8; ++fromY) {
+        for (int fromX = 0; fromX < 8; ++fromX) {
+            char piece = board[fromY][fromX];
+            if (
+                piece != ' ' &&
+                ((playerColor == 'w' && isupper(piece)) ||
+                 (playerColor == 'b' && islower(piece)))
+            ) {
+                for (int toY = 0; toY < 8; ++toY) {
+                    for (int toX = 0; toX < 8; ++toX) {
+                        if (isValidMove(board, piece, fromX, fromY, toX, toY, playerColor)) {
+                            memcpy(tempBoard, board, sizeof(board));
+                            tempBoard[toY][toX] = piece;
+                            tempBoard[fromY][fromX] = ' ';
+
+                            // handle en passant removal in the simulation
+                            if (
+                                toupper(piece) == 'P' &&
+                                toX == enPassantX &&
+                                toY == enPassantY
+                            ) {
+                                if (playerColor == 'w')
+                                    tempBoard[toY + 1][toX] = ' ';
+                                else
+                                    tempBoard[toY - 1][toX] = ' ';
+                            }
+
+                            // handle castling rook in the simulation
+                            if (
+                                toupper(piece) == 'K' &&
+                                abs(toX - fromX) == 2
+                            ) {
+                                if (toX == 6) {
+                                    tempBoard[fromY][5] = tempBoard[fromY][7];
+                                    tempBoard[fromY][7] = ' ';
+                                } else {
+                                    tempBoard[fromY][3] = tempBoard[fromY][0];
+                                    tempBoard[fromY][0] = ' ';
+                                }
+                            }
+
+                            if (!isKingInCheck(tempBoard, playerColor))
+                                return true;
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return false;
+}
+
+void checkEndgame() {
+    if (!hasLegalMoves(currentPlayer)) {
+        gameOver = true;
+        if (isKingInCheck(board, currentPlayer)) {
+            printf("checkmate! %s wins!\n", (currentPlayer == 'w') ? "Black" : "White");
+        } else {
+            printf("stalemate! draw!\n");
+        }
+    } else if (isKingInCheck(board, currentPlayer)) {
+        printf("%s's turn - check!\n", currentPlayer == 'w' ? "White" : "Black");
+    } else {
+        printf("%s's turn\n", currentPlayer == 'w' ? "White" : "Black");
+    }
 }
 
 // move validation
@@ -272,6 +352,74 @@ bool isValidMove(char boardState[8][8], char piece, int fromX, int fromY, int to
     return false;
 }
 
+// promotion rendering
+
+void renderPromotionChoice() {
+    const char* choices = (currentPlayer == 'w') ? "QRNB" : "qrnb";
+    int x = promotionX;
+    int y = promotionY;
+
+    // draw a semi-transparent column of 4 squares
+    SDL_SetRenderDrawBlendMode(gRenderer, SDL_BLENDMODE_BLEND);
+    SDL_SetRenderDrawColor(gRenderer, 100, 100, 100, 180);
+
+    // column starts from the promotion square's side
+    int startY = (y == 0) ? 0 : SCREEN_HEIGHT - 4 * SQUARE_SIZE;
+    SDL_Rect bgRect = { x * SQUARE_SIZE, startY, SQUARE_SIZE, 4 * SQUARE_SIZE };
+    SDL_RenderFillRect(gRenderer, &bgRect);
+
+    // draw the 4 piece options in the column
+    for (int i = 0; i < 4; ++i) {
+        char piece = choices[i];
+        // white promotes going up (rows 0-3), black promotes going down (rows 4-7)
+        int drawY = (y == 0) ? i : 7 - i;
+        SDL_Rect pieceRect = {
+            x * SQUARE_SIZE,
+            drawY * SQUARE_SIZE,
+            SQUARE_SIZE,
+            SQUARE_SIZE
+        };
+        SDL_RenderCopy(gRenderer, gPieceTextures[(int)piece], NULL, &pieceRect);
+    }
+}
+
+// handle click on the promotion column
+
+void handlePromotionClick(int mx, int my) {
+    int bx = mx / SQUARE_SIZE;
+    int by = my / SQUARE_SIZE;
+
+    // must click in the promotion column
+    if (bx != promotionX) return;
+
+    const char* choices = (currentPlayer == 'w') ? "QRNB" : "qrnb";
+
+    // determine which of the 4 squares was clicked
+    // for white promoting at row 0: choices are rows 0,1,2,3
+    // for black promoting at row 7: choices are rows 7,6,5,4
+    int startY = (promotionY == 0) ? 0 : 4;
+    if (by < startY || by >= startY + 4) return;
+
+    int index = (promotionY == 0) ? (by - startY) : (startY + 3 - by);
+    char chosenPiece = choices[index];
+
+    // place the chosen piece
+    board[promotionY][promotionX] = chosenPiece;
+    awaitingPromotion = false;
+    promotionX = -1;
+    promotionY = -1;
+
+    // reset en passant
+    enPassantX = -1;
+    enPassantY = -1;
+
+    // switch turns
+    currentPlayer = (currentPlayer == 'w') ? 'b' : 'w';
+
+    // check for checkmate/stalemate
+    checkEndgame();
+}
+
 // helpers
 
 SDL_Texture* loadTexture(SDL_Renderer* renderer, const char* path) {
@@ -320,9 +468,10 @@ int main(int argc, char* args[]) {
     int imgFlags = IMG_INIT_PNG;
 
     SDL_Window* window = SDL_CreateWindow("chess board", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN);
-    SDL_Renderer* renderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    gRenderer = SDL_CreateRenderer(window, -1, SDL_RENDERER_ACCELERATED | SDL_RENDERER_PRESENTVSYNC);
+    SDL_SetRenderDrawBlendMode(gRenderer, SDL_BLENDMODE_BLEND);
 
-    loadMedia(renderer);
+    loadMedia(gRenderer);
 
     // drag state
     bool isDragging = false;
@@ -337,6 +486,15 @@ int main(int argc, char* args[]) {
         while (SDL_PollEvent(&e) != 0) {
             if (e.type == SDL_QUIT) {
                 quit = true;
+
+            } else if (gameOver) {
+                // game is over, ignore input
+
+            } else if (awaitingPromotion) {
+                // only handle promotion clicks while waiting
+                if (e.type == SDL_MOUSEBUTTONDOWN) {
+                    handlePromotionClick(e.button.x, e.button.y);
+                }
 
             } else if (e.type == SDL_MOUSEBUTTONDOWN && !isDragging) {
                 int bx = e.button.x / SQUARE_SIZE;
@@ -403,36 +561,45 @@ int main(int argc, char* args[]) {
                         // legal: commit the move
                         memcpy(board, tempBoard, sizeof(board));
 
-                        // reset en passant target
-                        enPassantX = -1;
-                        enPassantY = -1;
-
-                        // set new en passant target if pawn double-pushed
+                        // check for promotion
                         if (
                             toupper(draggedPiece) == 'P' &&
-                            abs(by - dragStartY) == 2
+                            (by == 0 || by == 7)
                         ) {
-                            enPassantX = bx;
-                            enPassantY = (currentPlayer == 'w')
-                                ? dragStartY - 1
-                                : dragStartY + 1;
+                            // don't switch turns yet, wait for choice
+                            awaitingPromotion = true;
+                            promotionX = bx;
+                            promotionY = by;
+                        } else {
+                            // reset en passant target
+                            enPassantX = -1;
+                            enPassantY = -1;
+
+                            // set new en passant target if pawn double-pushed
+                            if (
+                                toupper(draggedPiece) == 'P' &&
+                                abs(by - dragStartY) == 2
+                            ) {
+                                enPassantX = bx;
+                                enPassantY = (currentPlayer == 'w')
+                                    ? dragStartY - 1
+                                    : dragStartY + 1;
+                            }
+
+                            // update castling rights
+                            if (draggedPiece == 'K') wKingMoved = true;
+                            if (draggedPiece == 'k') bKingMoved = true;
+                            if (draggedPiece == 'R' && dragStartX == 0 && dragStartY == 7) wRookAMoved = true;
+                            if (draggedPiece == 'R' && dragStartX == 7 && dragStartY == 7) wRookHMoved = true;
+                            if (draggedPiece == 'r' && dragStartX == 0 && dragStartY == 0) bRookAMoved = true;
+                            if (draggedPiece == 'r' && dragStartX == 7 && dragStartY == 0) bRookHMoved = true;
+
+                            // switch turns
+                            currentPlayer = (currentPlayer == 'w') ? 'b' : 'w';
+
+                            // check for checkmate/stalemate
+                            checkEndgame();
                         }
-
-                        // update castling rights
-                        if (draggedPiece == 'K') wKingMoved = true;
-                        if (draggedPiece == 'k') bKingMoved = true;
-                        if (draggedPiece == 'R' && dragStartX == 0 && dragStartY == 7) wRookAMoved = true;
-                        if (draggedPiece == 'R' && dragStartX == 7 && dragStartY == 7) wRookHMoved = true;
-                        if (draggedPiece == 'r' && dragStartX == 0 && dragStartY == 0) bRookAMoved = true;
-                        if (draggedPiece == 'r' && dragStartX == 7 && dragStartY == 0) bRookHMoved = true;
-
-                        currentPlayer = (currentPlayer == 'w') ? 'b' : 'w';
-
-                        // announce check
-                        if (isKingInCheck(board, currentPlayer))
-                            printf("%s's turn - check!\n", currentPlayer == 'w' ? "White" : "Black");
-                        else
-                            printf("%s's turn\n", currentPlayer == 'w' ? "White" : "Black");
                     } else {
                         // illegal: king would be in check
                         board[dragStartY][dragStartX] = draggedPiece;
@@ -449,8 +616,8 @@ int main(int argc, char* args[]) {
         }
 
         // Clear screen
-        SDL_SetRenderDrawColor(renderer, 0, 0, 0, 255);
-        SDL_RenderClear(renderer);
+        SDL_SetRenderDrawColor(gRenderer, 0, 0, 0, 255);
+        SDL_RenderClear(gRenderer);
 
         // draw the 8x8 board
         for (int r = 0; r < 8; ++r) {
@@ -460,10 +627,10 @@ int main(int argc, char* args[]) {
                     SQUARE_SIZE, SQUARE_SIZE
                 };
                 if ((r + c) % 2 == 0)
-                    SDL_SetRenderDrawColor(renderer, 238, 238, 210, 255);
+                    SDL_SetRenderDrawColor(gRenderer, 238, 238, 210, 255);
                 else
-                    SDL_SetRenderDrawColor(renderer, 118, 150, 86, 255);
-                SDL_RenderFillRect(renderer, &square);
+                    SDL_SetRenderDrawColor(gRenderer, 118, 150, 86, 255);
+                SDL_RenderFillRect(gRenderer, &square);
             }
         }
 
@@ -476,7 +643,7 @@ int main(int argc, char* args[]) {
                         c * SQUARE_SIZE, r * SQUARE_SIZE,
                         SQUARE_SIZE, SQUARE_SIZE
                     };
-                    SDL_RenderCopy(renderer, gPieceTextures[(int)piece], NULL, &dest);
+                    SDL_RenderCopy(gRenderer, gPieceTextures[(int)piece], NULL, &dest);
                 }
             }
         }
@@ -488,16 +655,20 @@ int main(int argc, char* args[]) {
                 mouseY - SQUARE_SIZE / 2,
                 SQUARE_SIZE, SQUARE_SIZE
             };
-            SDL_RenderCopy(renderer, gPieceTextures[(int)draggedPiece], NULL, &dest);
+            SDL_RenderCopy(gRenderer, gPieceTextures[(int)draggedPiece], NULL, &dest);
         }
 
-        SDL_RenderPresent(renderer);
+        // draw promotion choice on top of everything
+        if (awaitingPromotion)
+            renderPromotionChoice();
+
+        SDL_RenderPresent(gRenderer);
     }
 
     for (int i = 0; i < 128; ++i)
         if (gPieceTextures[i]) SDL_DestroyTexture(gPieceTextures[i]);
 
-    SDL_DestroyRenderer(renderer);
+    SDL_DestroyRenderer(gRenderer);
     SDL_DestroyWindow(window);
     IMG_Quit();
     SDL_Quit();
