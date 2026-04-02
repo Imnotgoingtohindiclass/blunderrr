@@ -125,7 +125,7 @@ Grab the latest release for your platform from the Releases page: http://github.
 
 Configuration requires building from source. Pre-built apps use default settings.
 
-Edit these constants in main.c before compiling:
+Edit these constants in bot.c before compiling:
 
 ```c
 #define SCREEN_WIDTH 640          // Window width (must be divisible by 8)
@@ -191,7 +191,7 @@ d2d4 d7d5 | 75
 
 ```
 chess/
-├── main.c                 # Main game loop, rendering, input handling
+├── bot.c                 # Main game loop, rendering, input handling
 ├── img/                   # Piece texture images (PNG format)
 │   ├── wP.png, wR.png, ... # White pieces
 │   └── bP.png, bR.png, ... # Black pieces
@@ -271,12 +271,12 @@ brew install sdl2 sdl2_image
 
 #### Linux/macOS (GCC/Clang)
 ```bash
-gcc -o chess main.c -lSDL2 -lSDL2_image -lm -std=c99 -O2
+gcc -o chess bot.c -lSDL2 -lSDL2_image -lm -std=c99 -O2
 ```
 
 #### Windows (MinGW)
 ```bash
-gcc -o chess.exe main.c -lmingw32 -lSDL2main -lSDL2 -lSDL2_image -lm
+gcc -o chess.exe bot.c -lmingw32 -lSDL2main -lSDL2 -lSDL2_image -lm
 ```
 
 #### Using Makefile
@@ -286,7 +286,7 @@ CFLAGS = -std=c99 -O2 -Wall -Wextra
 LDFLAGS = -lSDL2 -lSDL2_image -lm
 
 TARGET = chess
-SRC = main.c
+SRC = bot.c
 
 all: $(TARGET)
 
