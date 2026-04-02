@@ -370,9 +370,3 @@ SOFTWARE.
 - Piece-square tables inspired by Chess Programming Wiki (https://www.chessprogramming.org/)
 - Opening book format adapted from standard PGN conventions
 - Alpha-beta pruning implementation based on classic minimax algorithms
-
----
-
-Note: This engine is designed for educational purposes and casual play. For competitive analysis, consider stronger engines like Stockfish or Leela Chess Zero.
-
-Happy coding and good luck on the 64 squares!
