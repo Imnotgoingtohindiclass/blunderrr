@@ -1,3 +1,28 @@
 board
 chess
 *.o
+# Build directories
+build/
+cmake-build-*/
+out/
+release/
+
+# IDE / editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Compiled objects
+*.o
+*.obj
+*.exe
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Debug symbols
+*.dSYM/
+*.pdb
