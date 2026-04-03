@@ -21,7 +21,7 @@ name: Build & Release
 on:
   push:
     branches: [main]
-    tags: ['v*']        # triggers a release
+    tags: ['v*']
 
 jobs:
   # ─── Windows (MSYS2 / MinGW-w64) ────────────────────────────────────
@@ -68,7 +68,7 @@ jobs:
       - name: 🗜️ Zip
         run: |
           cd release
-          7z a ../chess-bot-windows-x86_64.zip *
+          tar -a -cf ../chess-bot-windows-x86_64.zip *
 
       - name: 📤 Upload artifact
         uses: actions/upload-artifact@v4
