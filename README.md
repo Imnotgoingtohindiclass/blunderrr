@@ -51,55 +51,77 @@ Chess - Standard Rules | AI - AlphaBeta Search | Cross-Platform - Windows | macO
 ---
 
 ## Installation
+
 No dependencies, no package managers, no terminal setup. Just download, open, and play.
 
 ### macOS
-1. Download blunderrr.dmg
-2. Open the .dmg file
-3. Drag blunderrr.app to your Applications folder
-4. Launch from Launchpad, Spotlight, or Applications
 
-Tip: First launch? If macOS blocks it, right-click the app → Open → Open to bypass Gatekeeper.
+1. Download `chess-bot-macos-arm64.zip` from the [Releases](https://github.com/imnotgoingtohindiclass/blunderrr/releases) page
+2. Double-click the `.zip` to extract it (macOS does this automatically)
+3. Open the extracted folder
+4. Double-click `chess-bot` to launch
+
+> **Gatekeeper warning?** Right-click the app → Open → Open. If macOS says the app "is damaged," run `xattr -cr chess-bot` in Terminal from the same folder, then relaunch.
 
 ### Windows
-1. Download ChessBot-Windows.zip
-2. Right-click → Extract All... (or use 7-Zip/WinRAR)
-3. Open the extracted folder
-4. Double-click chess-bot.exe
 
-Tip: SmartScreen warning? Click More info → Run anyway (standard for unsigned indie apps).
+1. Download `chess-bot-windows-x86_64.zip` from the [Releases](https://github.com/imnotgoingtohindiclass/blunderrr/releases) page
+2. Right-click → Extract All... (or use 7-Zip / WinRAR)
+3. Open the extracted folder
+4. Double-click `chess-bot.exe`
+
+> **SmartScreen warning?** Click "More info" → "Run anyway." This is standard for unsigned indie apps — Windows flags anything without a paid code-signing certificate.
 
 ### Linux
-1. Download ChessBot-Linux.tar.gz
-2. Extract: tar -xzf ChessBot-Linux.tar.gz
-3. Enter directory: cd ChessBot-Linux
-4. Run: ./run.sh or double-click run.sh in your file manager
 
-Tip: Permission denied? Run chmod +x run.sh bin/chess-bot first. Works on Ubuntu 20.04+, Fedora 33+, Arch, Debian, and most modern distros.
+1. Download `chess-bot-linux-x86_64.tar.gz` from the [Releases](https://github.com/imnotgoingtohindiclass/blunderrr/releases) page
+2. Extract: `tar -xzf chess-bot-linux-x86_64.tar.gz`
+3. Enter the directory: `cd chess-bot-linux-x86_64`
+4. Run: `./chess-bot`
+
+> **Permission denied?** Run `chmod +x chess-bot` first. Works on Ubuntu 20.04+, Fedora 33+, Arch, Debian, and most modern distros with glibc 2.31+.
+>
+> **Missing SDL2 at runtime?** On some distros the SDL2 runtime libraries aren't pre-installed. Install them with:
+> ```bash
+> # Ubuntu / Debian
+> sudo apt install libsdl2-2.0-0 libsdl2-image-2.0-0
+>
+> # Fedora
+> sudo dnf install SDL2 SDL2_image
+>
+> # Arch
+> sudo pacman -S sdl2 sdl2_image
+> ```
 
 ### System Requirements
+
 | Platform | Minimum OS | Architecture | Disk Space |
 |----------|------------|--------------|------------|
-| macOS | 10.15 Catalina | Intel & Apple Silicon | ~50 MB |
+| macOS | 10.15 Catalina | Apple Silicon (ARM64) | ~50 MB |
 | Windows | Windows 10 (64-bit) | x86_64 | ~50 MB |
-| Linux | glibc 2.31+ (Ubuntu 20.04+, Fedora 33+, etc.) | x86_64 | ~50 MB |
+| Linux | glibc 2.31+ (Ubuntu 20.04+) | x86_64 | ~50 MB |
 
 ### Troubleshooting
+
 | Issue | Fix |
 |-------|-----|
-| Missing pieces / blank board | Ensure the img/ folder is in the same directory as the executable |
-| "Opening book not found" in console | The game still works perfectly; komodo.txt is optional |
-| macOS "app is damaged and can't be opened" | Run xattr -cr blunderrr.app in Terminal, then relaunch |
-| Linux run.sh: Permission denied | Run chmod +x run.sh or launch via ./bin/chess-bot |
+| Missing pieces / blank board | Ensure the `img/` folder is in the same directory as the executable |
+| "Opening book not found" in console | The game still works perfectly; `komodo.txt` is optional |
+| macOS "app is damaged and can't be opened" | Run `xattr -cr chess-bot` in Terminal, then relaunch |
+| Linux `./chess-bot`: Permission denied | Run `chmod +x chess-bot` first |
+| Linux: error while loading shared libraries | Install SDL2 runtime (see Linux install step 4 above) |
+| Windows SmartScreen blocks the exe | Click "More info" → "Run anyway" |
 
 ### Downloads
-Grab the latest release for your platform from the Releases page: http://github.com/imnotgoingtohindiclass/blunderrr/releases
+
+Grab the latest release for your platform from the Releases page: https://github.com/imnotgoingtohindiclass/blunderrr/releases
 
 ---
 
 ## Usage
 
 ### Controls
+
 | Action | Input |
 |--------|-------|
 | Select piece | Left-click on your piece |
@@ -108,12 +130,14 @@ Grab the latest release for your platform from the Releases page: http://github.
 | Quit game | Close window or press Alt+F4 / Cmd+Q |
 
 ### Console Output
-- Move history in algebraic notation (e.g., e2e4, Nb1c3, O-O)
+
+- Move history in algebraic notation (e.g., `e2e4`, `Nb1c3`, `O-O`)
 - Check/checkmate announcements
 - AI evaluation scores during bot moves
 - Opening book match notifications
 
 ### First Run Tips
+
 1. White moves first by default (human player)
 2. The bot responds automatically after your move
 3. Watch the terminal for move history and game status
@@ -125,7 +149,7 @@ Grab the latest release for your platform from the Releases page: http://github.
 
 Configuration requires building from source. Pre-built apps use default settings.
 
-Edit these constants in bot.c before compiling:
+Edit these constants in `chess.c` before compiling:
 
 ```c
 #define SCREEN_WIDTH 640          // Window width (must be divisible by 8)
@@ -136,12 +160,14 @@ Edit these constants in bot.c before compiling:
 ```
 
 ### Game Mode Settings
+
 ```c
 bool vsBot = true;           // Set to false for human vs human
 char humanPlayer = 'w';      // 'w' for White, 'b' for Black
 ```
 
 ### Piece Values (for evaluation)
+
 ```c
 #define PAWN_VAL   100
 #define KNIGHT_VAL 320
@@ -155,17 +181,19 @@ char humanPlayer = 'w';      // 'w' for White, 'b' for Black
 
 ## Opening Book Format
 
-The engine supports a simple text-based opening book (komodo.txt).
+The engine supports a simple text-based opening book (`komodo.txt`).
 
 ### File Format
+
 ```
 <move_sequence> | <weight>
 ```
 
-- move_sequence: Space-separated algebraic moves from the starting position
-- weight: Integer representing move preference (higher = more likely)
+- `move_sequence`: Space-separated algebraic moves from the starting position
+- `weight`: Integer representing move preference (higher = more likely)
 
 ### Example komodo.txt
+
 ```
 e2e4 | 100
 e2e4 e7e5 | 80
@@ -176,56 +204,67 @@ d2d4 d7d5 | 75
 ```
 
 ### How to Use
-1. Place komodo.txt in the same directory as the executable
+
+1. Place `komodo.txt` in the same directory as the executable
 2. The engine automatically loads it on startup
-3. Console will show: opening book loaded: X lines
+3. Console will show: `opening book loaded: X lines`
 
 ### Creating Your Own Book
+
 1. Export games from chess databases in coordinate notation
-2. Format as move1 move2 move3 | weight
-3. Save as komodo.txt alongside the executable
+2. Format as `move1 move2 move3 | weight`
+3. Save as `komodo.txt` alongside the executable
 
 ---
 
 ## Code Structure
 
 ```
-chess/
-├── bot.c                 # Main game loop, rendering, input handling
-├── img/                   # Piece texture images (PNG format)
-│   ├── wP.png, wR.png, ... # White pieces
-│   └── bP.png, bR.png, ... # Black pieces
-├── komodo.txt             # Opening book file (optional)
-├── README.md              # This file
-└── Makefile               # Build configuration (source builds only)
+blunderrr/
+├── chess.c                # Main game loop, AI, rendering, input handling
+├── CMakeLists.txt         # Cross-platform CMake build configuration
+├── img/                    # Piece texture images (PNG format)
+│   ├── wP.png, wR.png, wN.png, wB.png, wQ.png, wK.png   # White pieces
+│   └── bP.png, bR.png, bN.png, bB.png, bQ.png, bK.png   # Black pieces
+├── komodo.txt              # Opening book file (optional)
+├── build-linux.sh          # One-click Linux build script
+├── build-macos.sh          # One-click macOS build script
+├── build-windows.bat       # One-click Windows build script (MSYS2)
+├── .github/
+│   └── workflows/
+│       └── build-release.yml   # CI/CD: auto-build + GitHub Releases
+└── README.md               # This file
 ```
 
 ### Key Functions
+
 | Function | Purpose |
 |----------|---------|
-| isValidMove() | Validates move legality including special rules |
-| generateMoves() | Generates all pseudo-legal moves for a player |
-| isSquareAttacked() / isKingInCheck() | Check detection logic |
-| executeMove() | Applies move to board with side effects |
-| searchMakeMove() | Silent move application for search (no UI updates) |
-| alphaBeta() | Recursive minimax with alpha-beta pruning |
-| evaluateBoard() | Positional + material evaluation from White's perspective |
-| loadOpeningBook() / getBookMove() | Opening book integration |
-| renderPromotionChoice() / handlePromotionClick() | Pawn promotion UI |
+| `isValidMove()` | Validates move legality including special rules |
+| `generateMoves()` | Generates all pseudo-legal moves for a player |
+| `isSquareAttacked()` / `isKingInCheck()` | Check detection logic |
+| `executeMove()` | Applies move to board with side effects |
+| `searchMakeMove()` | Silent move application for search (no UI updates) |
+| `alphaBeta()` | Recursive minimax with alpha-beta pruning |
+| `evaluateBoard()` | Positional + material evaluation from White's perspective |
+| `loadOpeningBook()` / `getBookMove()` | Opening book integration |
+| `renderPromotionChoice()` / `handlePromotionClick()` | Pawn promotion UI |
 
 ---
 
 ## Evaluation Function Details
 
-The board evaluation (evaluateBoard()) returns a score in centipawns from White's perspective:
+The board evaluation (`evaluateBoard()`) returns a score in centipawns from White's perspective.
 
 ### Components
-1. Material Balance (+/- piece values)
-2. Piece-Square Tables: Positional bonuses based on piece location
-3. Mobility Bonus: +3 centipawns per legal move advantage
-4. Endgame Detection: Switches king table when non-pawn material <= 1300 per side
+
+1. **Material Balance** (+/- piece values)
+2. **Piece-Square Tables**: Positional bonuses based on piece location
+3. **Mobility Bonus**: +3 centipawns per legal move advantage
+4. **Endgame Detection**: Switches king table when non-pawn material <= 1300 per side
 
 ### Example Scores
+
 | Position | Approx. Score |
 |----------|--------------|
 | Equal material, balanced position | 0 to ±50 |
@@ -237,79 +276,100 @@ The board evaluation (evaluateBoard()) returns a score in centipawns from White'
 
 ## Known Limitations
 
-1. Search Depth: Fixed at 3 ply; deeper searches may cause noticeable delays
-2. No Transposition Table: Repeated positions are re-evaluated
-3. No Quiescence Search: Tactical sequences may be mis-evaluated at leaf nodes
-4. Simple Move Ordering: Only MVV-LVA heuristic
-5. No Draw Detection: Threefold repetition and 50-move rule not implemented
-6. Single-Threaded: UI may freeze briefly during AI calculations
-7. Pre-built Apps: Configuration changes require building from source
+1. **Search Depth**: Fixed at 3 ply; deeper searches may cause noticeable delays
+2. **No Transposition Table**: Repeated positions are re-evaluated
+3. **No Quiescence Search**: Tactical sequences may be mis-evaluated at leaf nodes
+4. **Simple Move Ordering**: Only MVV-LVA heuristic
+5. **No Draw Detection**: Threefold repetition and 50-move rule not implemented
+6. **Single-Threaded**: UI may freeze briefly during AI calculations
+7. **Pre-built Apps**: Configuration changes require building from source
 
 ---
 
 ## Building from Source
 
-Only needed if you want to modify the code or configuration.
+Only needed if you want to modify the code or configuration. Pre-built binaries are available on the [Releases](https://github.com/imnotgoingtohindiclass/blunderrr/releases) page.
 
-### Requirements
-- C Compiler: GCC, Clang, or MSVC with C99 support
-- SDL2 Library: Simple DirectMedia Layer 2 (https://www.libsdl.org/)
-- SDL2_image: For PNG texture loading
+### Prerequisites
 
-### Installation (Linux/Ubuntu)
-```bash
-sudo apt update
-sudo apt install libsdl2-dev libsdl2-image-dev build-essential
-```
+| Platform | Dependencies |
+|----------|-------------|
+| **Linux (Ubuntu/Debian)** | `sudo apt install gcc cmake pkg-config libsdl2-dev libsdl2-image-dev` |
+| **macOS** | `brew install cmake sdl2 sdl2_image` |
+| **Windows** | [MSYS2 MinGW64](https://www.msys2.org) — install GCC + CMake + SDL2 via `pacman` (see below) |
 
-### Installation (macOS - Homebrew)
-```bash
-brew install sdl2 sdl2_image
-```
-
-### Build Commands
-
-#### Linux/macOS (GCC/Clang)
-```bash
-gcc -o chess bot.c -lSDL2 -lSDL2_image -lm -std=c99 -O2
-```
-
-#### Windows (MinGW)
-```bash
-gcc -o chess.exe bot.c -lmingw32 -lSDL2main -lSDL2 -lSDL2_image -lm
-```
-
-#### Using Makefile
-```makefile
-CC = gcc
-CFLAGS = -std=c99 -O2 -Wall -Wextra
-LDFLAGS = -lSDL2 -lSDL2_image -lm
-
-TARGET = chess
-SRC = bot.c
-
-all: $(TARGET)
-
-$(TARGET): $(SRC)
-	$(CC) $(CFLAGS) -o $@ $< $(LDFLAGS)
-
-clean:
-	rm -f $(TARGET)
-
-.PHONY: all clean
-```
+### Quick Build (Scripts)
 
 ```bash
-make
+# Linux
+chmod +x build-linux.sh && ./build-linux.sh
+
+# macOS
+chmod +x build-macos.sh && ./build-macos.sh
+
+# Windows — open "MSYS2 MinGW 64-bit" terminal, then:
+build-windows.bat
 ```
+
+### Manual CMake Build
+
+```bash
+# 1. Install dependencies (see table above)
+
+# 2. Configure
+mkdir build && cd build
+cmake .. -DCMAKE_BUILD_TYPE=Release
+
+# 3. Build
+cmake --build . -j$(nproc)    # Linux / macOS
+cmake --build .                # Windows (MSYS2)
+
+# 4. Run
+./chess-bot        # Linux / macOS
+chess-bot.exe      # Windows
+```
+
+The `img/` folder and `komodo.txt` are automatically copied next to the binary at build time.
+
+### Windows MSYS2 Setup (Detailed)
+
+If you don't have MSYS2 installed yet:
+
+1. Install MSYS2 from https://www.msys2.org
+2. Open the **MSYS2 MinGW 64-bit** shortcut (not the regular MSYS2 terminal)
+3. Install build tools and SDL2:
+   ```bash
+   pacman -S mingw-w64-x86_64-gcc mingw-w64-x86_64-cmake mingw-w64-x86_64-make mingw-w64-x86_64-pkg-config mingw-w64-x86_64-SDL2 mingw-w64-x86_64-SDL2_image
+   ```
+4. Navigate to the project folder and build as shown above
 
 ### Required Assets for Source Builds
-Ensure the img/ folder with piece textures is in the executable directory:
+
+Ensure the `img/` folder with piece textures exists in the project root:
+
 ```
 img/
 ├── wP.png, wR.png, wN.png, wB.png, wQ.png, wK.png
 └── bP.png, bR.png, bN.png, bB.png, bQ.png, bK.png
 ```
+
+---
+
+## Automated Releases (GitHub Actions)
+
+The included CI/CD workflow (`.github/workflows/build-release.yml`) handles everything automatically:
+
+- Every **push to `main`** builds on all 3 platforms (smoke test)
+- Every **version tag** (e.g. `v1.0.0`) creates a GitHub Release with downloadable binaries
+
+### Creating a New Release
+
+```bash
+git tag v1.0.0
+git push origin v1.0.0
+```
+
+GitHub Actions will build for Windows, Linux, and macOS, then upload the artifacts to the release page. No manual packaging required.
 
 ---
 
@@ -324,12 +384,15 @@ Contributions are welcome! Areas for improvement:
 - Add sound effects for moves/captures/check
 - Implement move undo functionality
 - Add game save/load (PGN format)
+- Create a macOS `.app` bundle for proper Launchpad integration
+- Add an x86_64 macOS build target
 
 ### Pull Request Guidelines
+
 1. Fork the repository
-2. Create a feature branch (git checkout -b feature/amazing-feature)
-3. Commit changes (git commit -m 'Add amazing feature')
-4. Push to branch (git push origin feature/amazing-feature)
+2. Create a feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit changes (`git commit -m 'Add amazing feature'`)
+4. Push to branch (`git push origin feature/amazing-feature`)
 5. Open a Pull Request
 
 ---
