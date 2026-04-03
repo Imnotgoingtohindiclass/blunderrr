@@ -1,0 +1,191 @@
+# ─────────────────────────────────────────────────────────────────────────
+# GitHub Actions – build & release chess-bot for Windows / Linux / macOS
+# ─────────────────────────────────────────────────────────────────────────
+#
+# How it works
+# ────────────
+# 1. Every push to main runs the build jobs but does NOT create a release.
+# 2. When you push a git tag that starts with "v" (e.g. v1.0.0), the three
+#    build jobs produce .zip / .tar.gz artifacts and a GitHub Release is
+#    created with all three attached.
+#
+# Quick start
+# ───────────
+#   git tag v1.0.0
+#   git push origin v1.0.0
+#
+# ─────────────────────────────────────────────────────────────────────────
+
+name: Build & Release
+
+on:
+  push:
+    branches: [main]
+    tags: ['v*']        # triggers a release
+
+jobs:
+  # ─── Windows (MSYS2 / MinGW-w64) ────────────────────────────────────
+  build-windows:
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: msys2 {0}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 📦 Install MSYS2 build tools + SDL2
+        uses: msys2/setup-msys2@v2
+        with:
+          msystem: MINGW64
+          update: true
+          install: >
+            mingw-w64-x86_64-gcc
+            mingw-w64-x86_64-cmake
+            mingw-w64-x86_64-make
+            mingw-w64-x86_64-pkg-config
+            mingw-w64-x86_64-SDL2
+            mingw-w64-x86_64-SDL2_image
+
+      - name: 🔨 Build
+        run: |
+          mkdir build && cd build
+          cmake .. -G "MinGW Makefiles" -DCMAKE_BUILD_TYPE=Release
+          cmake --build . --config Release
+
+      - name: 📁 Stage release directory
+        run: |
+          mkdir -p release
+          cp build/chess-bot.exe release/
+          cp -r img release/img
+          cp komodo.txt release/komodo.txt
+
+          # Grab every DLL that the exe needs from the MSYS2 tree
+          for dll in $(ldd build/chess-bot.exe | grep -i mingw64 | awk '{print $3}'); do
+            cp "$dll" release/ 2>/dev/null || true
+          done
+
+      - name: 🗜️ Zip
+        run: |
+          cd release
+          7z a ../chess-bot-windows-x86_64.zip *
+
+      - name: 📤 Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chess-bot-windows-x86_64
+          path: chess-bot-windows-x86_64.zip
+
+  # ─── Linux (Ubuntu) ─────────────────────────────────────────────────
+  build-linux:
+    runs-on: ubuntu-22.04
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 📦 Install dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            gcc cmake pkg-config \
+            libsdl2-dev libsdl2-image-dev
+
+      - name: 🔨 Build
+        run: |
+          mkdir build && cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release
+          cmake --build . --config Release
+
+      - name: 📁 Stage release directory
+        run: |
+          mkdir -p release
+          cp build/chess-bot release/
+          cp -r img release/img
+          cp komodo.txt release/komodo.txt
+
+      - name: 🗜️ Tarball
+        run: |
+          cd release && tar czf ../chess-bot-linux-x86_64.tar.gz *
+
+      - name: 📤 Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chess-bot-linux-x86_64
+          path: chess-bot-linux-x86_64.tar.gz
+
+  # ─── macOS ──────────────────────────────────────────────────────────
+  build-macos:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 📦 Install dependencies
+        run: |
+          brew install cmake sdl2 sdl2_image
+
+      - name: 🔨 Build
+        run: |
+          mkdir build && cd build
+          cmake .. -DCMAKE_BUILD_TYPE=Release \
+            -DCMAKE_PREFIX_PATH="$(brew --prefix)"
+          cmake --build . --config Release
+
+      - name: 📁 Stage release directory
+        run: |
+          mkdir -p release
+          cp build/chess-bot release/
+          cp -r img release/img
+          cp komodo.txt release/komodo.txt
+
+          # Collect dylibs so it runs on Macs without Homebrew
+          brew_prefix=$(brew --prefix)
+          for lib in SDL2 SDL2_image; do
+            dylib=$(find "$brew_prefix/lib" -maxdepth 1 -name "lib${lib}*.dylib" | head -1)
+            cp "$dylib" release/ 2>/dev/null || true
+          done
+
+      - name: 🗜️ Zip
+        run: |
+          cd release && zip -r ../chess-bot-macos-arm64.zip *
+
+      - name: 📤 Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chess-bot-macos-arm64
+          path: chess-bot-macos-arm64.zip
+
+  # ─── Create GitHub Release (only on tags) ──────────────────────────
+  release:
+    if: startsWith(github.ref, 'refs/tags/')
+    needs: [build-windows, build-linux, build-macos]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: ⬇️ Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - name: 📋 List artifacts
+        run: find artifacts -type f
+
+      - name: 🚀 Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: Release ${{ github.ref_name }}
+          body: |
+            ### Chess Bot ${{ github.ref_name }}
+
+            | Platform | File |
+            |----------|------|
+            | 🪟 Windows x86_64 | `chess-bot-windows-x86_64.zip` |
+            | 🐧 Linux x86_64 | `chess-bot-linux-x86_64.tar.gz` |
+            | 🍎 macOS ARM64 | `chess-bot-macos-arm64.zip` |
+
+            **How to run:** unzip / extract, then double-click (or `./chess-bot`) the binary.
+          files: |
+            artifacts/chess-bot-windows-x86_64/chess-bot-windows-x86_64.zip
+            artifacts/chess-bot-linux-x86_64/chess-bot-linux-x86_64.tar.gz
+            artifacts/chess-bot-macos-arm64/chess-bot-macos-arm64.zip
+          generate_release_notes: true
