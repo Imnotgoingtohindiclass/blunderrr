@@ -354,24 +354,6 @@ img/
 
 ---
 
-## Automated Releases (GitHub Actions)
-
-The included CI/CD workflow (`.github/workflows/build-release.yml`) handles everything automatically:
-
-- Every **push to `main`** builds on all 3 platforms (smoke test)
-- Every **version tag** (e.g. `v1.0.0`) creates a GitHub Release with downloadable binaries
-
-### Creating a New Release
-
-```bash
-git tag v1.0.0
-git push origin v1.0.0
-```
-
-GitHub Actions will build for Windows, Linux, and macOS, then upload the artifacts to the release page. No manual packaging required.
-
----
-
 ## Contributing
 
 Contributions are welcome! Areas for improvement:
@@ -383,16 +365,6 @@ Contributions are welcome! Areas for improvement:
 - Add sound effects for moves/captures/check
 - Implement move undo functionality
 - Add game save/load (PGN format)
-- Create a macOS `.app` bundle for proper Launchpad integration
-- Add an x86_64 macOS build target
-
-### Pull Request Guidelines
-
-1. Fork the repository
-2. Create a feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open a Pull Request
 
 ---
 
