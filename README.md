@@ -1,6 +1,6 @@
 # blunderrr
 
-A feature-rich chess engine with an AI opponent featuring alpha-beta pruning, opening book support, and full chess rule implementation. Pre-built applications available for instant play!
+A feature-rich chess engine with an AI opponent featuring alpha-beta pruning, opening book support, and full chess rule implementation.
 
 Chess - Standard Rules | AI - AlphaBeta Search | Cross-Platform - Windows | macOS | Linux
 
