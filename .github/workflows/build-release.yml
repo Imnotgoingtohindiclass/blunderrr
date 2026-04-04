@@ -112,22 +112,22 @@ jobs:
 
           # Launcher script that sets LD_LIBRARY_PATH to the bundle dir
           cat > release/run.sh << 'EOF'
-#!/bin/bash
-DIR="$(cd "$(dirname "$0")" && pwd)"
-export LD_LIBRARY_PATH="$DIR:${LD_LIBRARY_PATH:-}"
-exec "$DIR/chess-bot" "$@"
-EOF
-          chmod +x release/run.sh
-
-      - name: 🗜️ Tarball
-        run: |
-          cd release && tar czf ../chess-bot-linux-x86_64.tar.gz *
-
-      - name: 📤 Upload artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: chess-bot-linux-x86_64
-          path: chess-bot-linux-x86_64.tar.gz
+          #!/bin/bash
+          DIR="$(cd "$(dirname "$0")" && pwd)"
+          export LD_LIBRARY_PATH="$DIR:${LD_LIBRARY_PATH:-}"
+          exec "$DIR/chess-bot" "$@"
+          EOF
+                    chmod +x release/run.sh
+          
+                - name: 🗜️ Tarball
+                  run: |
+                    cd release && tar czf ../chess-bot-linux-x86_64.tar.gz *
+          
+                - name: 📤 Upload artifact
+                  uses: actions/upload-artifact@v4
+                  with:
+                    name: chess-bot-linux-x86_64
+                    path: chess-bot-linux-x86_64.tar.gz
 
   # ─── macOS ──────────────────────────────────────────────────────────
   build-macos:
