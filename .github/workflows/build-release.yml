@@ -1,21 +1,3 @@
-# ─────────────────────────────────────────────────────────────────────────
-# GitHub Actions – build & release chess-bot for Windows / Linux / macOS
-# ─────────────────────────────────────────────────────────────────────────
-#
-# How it works
-# ────────────
-# 1. Every push to main runs the build jobs but does NOT create a release.
-# 2. When you push a git tag that starts with "v" (e.g. v1.0.0), the three
-#    build jobs produce .zip / .tar.gz artifacts and a GitHub Release is
-#    created with all three attached.
-#
-# Quick start
-# ───────────
-#   git tag v1.0.0
-#   git push origin v1.0.0
-#
-# ─────────────────────────────────────────────────────────────────────────
-
 name: Build & Release
 
 on:
@@ -65,10 +47,10 @@ jobs:
             cp "$dll" release/ 2>/dev/null || true
           done
 
-      - name: 🗜️ Zip
+      - name: 🗜️ Zip (PowerShell)
+        shell: pwsh
         run: |
-          cd release
-          tar -a -cf ../chess-bot-windows-x86_64.zip *
+          Compress-Archive -Path release\* -DestinationPath chess-bot-windows-x86_64.zip
 
       - name: 📤 Upload artifact
         uses: actions/upload-artifact@v4
@@ -101,6 +83,23 @@ jobs:
           cp build/chess-bot release/
           cp -r img release/img
           cp komodo.txt release/komodo.txt
+
+          # Bundle SDL2 shared libs so the binary runs without them installed
+          for lib in libSDL2-2.0.so.0 libSDL2_image-2.0.so.0; do
+            found=$(find /usr/lib /usr/lib/x86_64-linux-gnu -name "$lib" 2>/dev/null | head -1)
+            if [ -n "$found" ]; then
+              cp "$found" release/
+            fi
+          done
+
+          # Launcher script that sets LD_LIBRARY_PATH to the bundle dir
+          cat > release/run.sh << 'EOF'
+#!/bin/bash
+DIR="$(cd "$(dirname "$0")" && pwd)"
+export LD_LIBRARY_PATH="$DIR:${LD_LIBRARY_PATH:-}"
+exec "$DIR/chess-bot" "$@"
+EOF
+          chmod +x release/run.sh
 
       - name: 🗜️ Tarball
         run: |
@@ -136,12 +135,25 @@ jobs:
           cp -r img release/img
           cp komodo.txt release/komodo.txt
 
-          # Collect dylibs so it runs on Macs without Homebrew
           brew_prefix=$(brew --prefix)
+
           for lib in SDL2 SDL2_image; do
             dylib=$(find "$brew_prefix/lib" -maxdepth 1 -name "lib${lib}*.dylib" | head -1)
-            cp "$dylib" release/ 2>/dev/null || true
+            if [ -n "$dylib" ]; then
+              cp "$dylib" release/
+              libname=$(basename "$dylib")
+              # Patch binary to look next to itself instead of the Homebrew path
+              install_name_tool -change "$dylib" "@executable_path/$libname" release/chess-bot
+            fi
           done
+
+          # Also fix SDL2_image's reference to SDL2 so it resolves from the bundle
+          sdl2_dylib=$(find "$brew_prefix/lib" -maxdepth 1 -name "libSDL2-*.dylib" | head -1)
+          sdl2_image_dylib=$(find release -name "libSDL2_image*.dylib" | head -1)
+          if [ -n "$sdl2_dylib" ] && [ -n "$sdl2_image_dylib" ]; then
+            sdl2_libname=$(basename "$sdl2_dylib")
+            install_name_tool -change "$sdl2_dylib" "@loader_path/$sdl2_libname" "$sdl2_image_dylib" 2>/dev/null || true
+          fi
 
       - name: 🗜️ Zip
         run: |
@@ -177,13 +189,13 @@ jobs:
           body: |
             ### Chess Bot ${{ github.ref_name }}
 
-            | Platform | File |
-            |----------|------|
-            | 🪟 Windows x86_64 | `chess-bot-windows-x86_64.zip` |
-            | 🐧 Linux x86_64 | `chess-bot-linux-x86_64.tar.gz` |
-            | 🍎 macOS ARM64 | `chess-bot-macos-arm64.zip` |
+            | Platform | File | Notes |
+            |----------|------|-------|
+            | 🪟 Windows x86_64 | `chess-bot-windows-x86_64.zip` | Unzip, double-click `chess-bot.exe` |
+            | 🐧 Linux x86_64 | `chess-bot-linux-x86_64.tar.gz` | Extract, run `./run.sh` |
+            | 🍎 macOS ARM64 | `chess-bot-macos-arm64.zip` | Unzip, run `./chess-bot` |
 
-            **How to run:** unzip / extract, then double-click (or `./chess-bot`) the binary.
+            > **Linux users:** use `./run.sh` (not `./chess-bot` directly) — it sets up the bundled SDL2 libs automatically.
           files: |
             artifacts/chess-bot-windows-x86_64/chess-bot-windows-x86_64.zip
             artifacts/chess-bot-linux-x86_64/chess-bot-linux-x86_64.tar.gz
