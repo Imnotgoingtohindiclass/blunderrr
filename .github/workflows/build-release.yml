@@ -102,32 +102,32 @@ jobs:
           cp -r img release/img
           cp komodo.txt release/komodo.txt
 
-          # Bundle SDL2 shared libs so the binary runs without them installed
+          # Bundle SDL2 shared libs (resolve symlinks so we get the real file)
           for lib in libSDL2-2.0.so.0 libSDL2_image-2.0.so.0; do
             found=$(find /usr/lib /usr/lib/x86_64-linux-gnu -name "$lib" 2>/dev/null | head -1)
             if [ -n "$found" ]; then
-              cp "$found" release/
+              cp --dereference "$found" release/
             fi
           done
 
-          # Launcher script that sets LD_LIBRARY_PATH to the bundle dir
-          cat > release/run.sh << 'EOF'
-          #!/bin/bash
-          DIR="$(cd "$(dirname "$0")" && pwd)"
-          export LD_LIBRARY_PATH="$DIR:${LD_LIBRARY_PATH:-}"
-          exec "$DIR/chess-bot" "$@"
-          EOF
-                    chmod +x release/run.sh
-          
-                - name: 🗜️ Tarball
-                  run: |
-                    cd release && tar czf ../chess-bot-linux-x86_64.tar.gz *
-          
-                - name: 📤 Upload artifact
-                  uses: actions/upload-artifact@v4
-                  with:
-                    name: chess-bot-linux-x86_64
-                    path: chess-bot-linux-x86_64.tar.gz
+          # Write launcher without a heredoc (avoids YAML/shell quoting issues)
+          printf '%s\n' \
+            '#!/bin/bash' \
+            'DIR="$(cd "$(dirname "$0")" && pwd)"' \
+            'export LD_LIBRARY_PATH="$DIR:${LD_LIBRARY_PATH:-}"' \
+            'exec "$DIR/chess-bot" "$@"' \
+            > release/run.sh
+          chmod +x release/run.sh
+
+      - name: 🗜️ Tarball
+        run: |
+          cd release && tar czf ../chess-bot-linux-x86_64.tar.gz *
+
+      - name: 📤 Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: chess-bot-linux-x86_64
+          path: chess-bot-linux-x86_64.tar.gz
 
   # ─── macOS ──────────────────────────────────────────────────────────
   build-macos:
@@ -156,21 +156,36 @@ jobs:
           brew_prefix=$(brew --prefix)
 
           for lib in SDL2 SDL2_image; do
-            dylib=$(find "$brew_prefix/lib" -maxdepth 1 -name "lib${lib}*.dylib" | head -1)
+            # Resolve real file behind symlink before copying
+            dylib=$(find "$brew_prefix/lib" -maxdepth 1 -name "lib${lib}*.dylib" | \
+                    xargs -I{} readlink -f {} 2>/dev/null | head -1)
+            if [ -z "$dylib" ]; then
+              dylib=$(find "$brew_prefix/lib" -maxdepth 1 -name "lib${lib}*.dylib" | head -1)
+            fi
             if [ -n "$dylib" ]; then
-              cp "$dylib" release/
               libname=$(basename "$dylib")
-              # Patch binary to look next to itself instead of the Homebrew path
-              install_name_tool -change "$dylib" "@executable_path/$libname" release/chess-bot
+              cp -f "$dylib" "release/$libname"
+              chmod u+w "release/$libname"
+              # Patch binary: cover both the real path and the symlink path
+              install_name_tool -change "$dylib" "@executable_path/$libname" release/chess-bot 2>/dev/null || true
+              symlink=$(find "$brew_prefix/lib" -maxdepth 1 -name "lib${lib}*.dylib" | head -1)
+              if [ "$symlink" != "$dylib" ]; then
+                install_name_tool -change "$symlink" "@executable_path/$libname" release/chess-bot 2>/dev/null || true
+              fi
             fi
           done
 
-          # Also fix SDL2_image's reference to SDL2 so it resolves from the bundle
-          sdl2_dylib=$(find "$brew_prefix/lib" -maxdepth 1 -name "libSDL2-*.dylib" | head -1)
-          sdl2_image_dylib=$(find release -name "libSDL2_image*.dylib" | head -1)
-          if [ -n "$sdl2_dylib" ] && [ -n "$sdl2_image_dylib" ]; then
-            sdl2_libname=$(basename "$sdl2_dylib")
-            install_name_tool -change "$sdl2_dylib" "@loader_path/$sdl2_libname" "$sdl2_image_dylib" 2>/dev/null || true
+          # Fix SDL2_image's internal reference to SDL2
+          sdl2_real=$(find "$brew_prefix/lib" -maxdepth 1 -name "libSDL2-*.dylib" | \
+                      xargs -I{} readlink -f {} 2>/dev/null | head -1)
+          sdl2_image_bundle=$(find release -name "libSDL2_image*.dylib" | head -1)
+          if [ -n "$sdl2_real" ] && [ -n "$sdl2_image_bundle" ]; then
+            sdl2_libname=$(basename "$sdl2_real")
+            install_name_tool -change "$sdl2_real" "@loader_path/$sdl2_libname" "$sdl2_image_bundle" 2>/dev/null || true
+            sdl2_sym=$(find "$brew_prefix/lib" -maxdepth 1 -name "libSDL2.dylib" | head -1)
+            if [ -n "$sdl2_sym" ]; then
+              install_name_tool -change "$sdl2_sym" "@loader_path/$sdl2_libname" "$sdl2_image_bundle" 2>/dev/null || true
+            fi
           fi
 
       - name: 🗜️ Zip
