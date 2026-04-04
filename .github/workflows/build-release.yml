@@ -1,3 +1,21 @@
+# ─────────────────────────────────────────────────────────────────────────
+# GitHub Actions – build & release chess-bot for Windows / Linux / macOS
+# ─────────────────────────────────────────────────────────────────────────
+#
+# How it works
+# ────────────
+# 1. Every push to main runs the build jobs but does NOT create a release.
+# 2. When you push a git tag that starts with "v" (e.g. v1.0.0), the three
+#    build jobs produce .zip / .tar.gz artifacts and a GitHub Release is
+#    created with all three attached.
+#
+# Quick start
+# ───────────
+#   git tag v1.0.0
+#   git push origin v1.0.0
+#
+# ─────────────────────────────────────────────────────────────────────────
+
 name: Build & Release
 
 on:
