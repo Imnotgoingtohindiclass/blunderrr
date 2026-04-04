@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
 # ── Local build script for Linux ────────────────────────────────────────
 # Requires: sudo apt install gcc cmake pkg-config libsdl2-dev libsdl2-image-dev
-
 set -euo pipefail
-
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 cd "$SCRIPT_DIR"
 
