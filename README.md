@@ -52,8 +52,6 @@ Chess - Standard Rules | AI - AlphaBeta Search | Cross-Platform - Windows | macO
 
 ## Installation
 
-No dependencies, no package managers, no terminal setup. Just download, open, and play.
-
 ### macOS
 
 1. Download `chess-bot-macos-arm64.zip` from the [Releases](https://github.com/imnotgoingtohindiclass/blunderrr/releases) page
@@ -69,6 +67,7 @@ No dependencies, no package managers, no terminal setup. Just download, open, an
 2. Right-click → Extract All... (or use 7-Zip / WinRAR)
 3. Open the extracted folder
 4. Double-click `chess-bot.exe`
+> If running it gives an error saying that SDL2.dll needs to be installed, just click run anyway
 
 > **SmartScreen warning?** Click "More info" → "Run anyway." This is standard for unsigned indie apps — Windows flags anything without a paid code-signing certificate.
 
